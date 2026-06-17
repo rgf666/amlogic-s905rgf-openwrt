@@ -11,38 +11,33 @@ on:
       source_branch:
         description: "Select the source branch"
         required: false
-        default: "immortalwrt_master"  # 修改默认为 ImmortalWrt 主分支
+        default: "immortalwrt_master"  # 默认使用 ImmortalWrt 主分支
         type: choice
         options:
-          - immortalwrt_master  # 推荐用于 S905W
+          - immortalwrt_master  
           - openwrt_main
           - lede_master
       openwrt_board:
         description: "Select device board"
         required: false
-        default: "s905w"  # 修改默认为你的盒子型号
+        default: "s905w"  # 锁定您的 S905W 盒子
         type: choice
         options:
-          - s905w               # 你的盒子
+          - s905w               
           - s905d
           - s905x3
           - s922x
-          - a311d
-          - r68s
-          - r66s
-          - amlogic             # 通用 Amlogic 选项
-          - all                 # 不推荐，编译时间过长
+          - amlogic             
+          - all                 
       openwrt_kernel:
         description: "Select kernel version"
         required: false
-        default: "5.15.y"      # 修改默认为 5.15 内核 (S905W 最稳定)
+        default: "5.15.y"      # 锁定 S905W 最稳定的 5.15 内核
         type: choice
         options:
-          - 5.15.y              # 推荐
+          - 5.15.y              
           - 6.1.y
           - 6.6.y
-          - 6.12.y
-          - 6.18.y
       auto_kernel:
         description: "Auto use the latest kernel"
         required: false
@@ -71,11 +66,11 @@ on:
       openwrt_storage:
         description: "Select image storage type."
         required: false
-        default: "temp"          # 修改默认为临时存储，不保留源码包
+        default: "temp"          # 仅保留固件，节省空间
         type: choice
         options:
-          - temp                 # 仅保留固件
-          - save                 # 保留源码和固件
+          - temp                 
+          - save                 
       builder_name:
         description: "Set OpenWrt builder signature."
         required: false
@@ -87,7 +82,9 @@ on:
           - yourname
 
 env: 
-  TZ: Asia/Shanghai           # 修改时区为上海
+  TZ: Asia/Shanghai           # 设置时区
+  # 【核心修改】在这里集成 OpenClash 及其必要依赖
+  CUSTOM_PACKAGES: "luci-app-openclash luci-compat luci-lib-ipkg"
 
 jobs: 
   setup: 
