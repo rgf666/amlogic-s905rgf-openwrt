@@ -154,21 +154,75 @@ jobs:
           df -Th
           echo "status=success" >> ${GITHUB_OUTPUT}
 
-      - name: Download OpenWrt [ ${{ matrix.branch }} ]
+            - name: Download OpenWrt [ ${{ matrix.branch }} ]
         id: down
         working-directory: /builder
         if: ${{ steps.init.outputs.status == 'success' && !cancelled() }}
         run: |
+          # 1. 根据输入的分支前缀，确定对应的官方仓库 URL
           if [[ "${{ matrix.branch }}" =~ ^openwrt ]]; then
             REPO_URL="https://github.com/openwrt/openwrt"
+            REPO_NAME="openwrt"
           elif [[ "${{ matrix.branch }}" =~ ^lede ]]; then
             REPO_URL="https://github.com/coolsnowwolf/lede"
+            REPO_NAME="lede"
           elif [[ "${{ matrix.branch }}" =~ ^immortalwrt ]]; then
             REPO_URL="https://github.com/immortalwrt/immortalwrt"
+            REPO_NAME="immortalwrt"
           else
             echo "Error: Unknown source code repository."
             exit 1
           fi
+          
+          # 2. 提取分支名称（去掉前缀后的部分，如 master, main 等）
+          REPO_BRANCH="${{ matrix.branch }}_${{ inputs.openwrt_board }}_${{ inputs.openwrt_kernel }}"
+          # 注意：ophub 的脚本通常会在 tag_name 中包含类似 "OpenWrt_immortalwrt_master_s905w-..." 的格式
+          # 这里简化处理，主要确保能匹配到对应的仓库
+
+          echo "Searching for latest release in: $REPO_URL"
+
+          # 3. 使用 GitHub API 查询该仓库最新的 Release
+          # jq 用于解析 JSON，查找包含对应分支信息的最新 rootfs.tar.gz 文件
+          latest_version=$(curl -s \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "$REPO_URL/releases?per_page=20" | \
+            jq -r --arg BRANCH "${{ matrix.branch }}" \
+            --arg BOARD "${{ inputs.openwrt_board }}" \
+            --arg KERNEL "${{ inputs.openwrt_kernel }}" \
+            '[.[] | select(.tag_name | contains($BRANCH) and contains($BOARD) and contains($KERNEL))] | 
+             map(.assets[] | select(.name | endswith("-rootfs.tar.gz"))) | 
+             sort_by(.updated_at) | reverse | .[0] | 
+             {url: .url, name: .name, tag: .tag_name}')
+
+          # 4. 检查是否找到了有效的下载链接
+          if [[ -z "$latest_version" || "$latest_version" == "null" ]]; then
+            echo "Error: Failed to resolve OpenWrt rootfs download URL for branch: ${{ matrix.branch }}"
+            echo "Please ensure there are existing Releases in the repository that match your configuration."
+            exit 1
+          fi
+
+          # 5. 提取下载 URL 和文件名
+          latest_url="$(echo $latest_version | jq -r '.url')"
+          openwrt_filename="$(echo $latest_version | jq -r '.name')"
+          echo "Found latest release: $openwrt_filename"
+
+          # 6. 执行下载
+          echo "Downloading: $openwrt_filename ..."
+          curl -fsSL \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/octet-stream" \
+            "$latest_url" \
+            -o "openwrt/output/$openwrt_filename"
+
+          # 7. 验证下载结果
+          if [[ $? -ne 0 ]]; then
+            echo "Error: Download failed."
+            exit 1
+          fi
+
+          echo "Download completed successfully."
+          echo "status=success" >> ${GITHUB_OUTPUT}
 
           source_branch_input="${{ matrix.branch }}"
           REPO_NAME="${source_branch_input%_*}"
